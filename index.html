@@ -96,6 +96,15 @@ input[type=file]{width:100%;margin-top:12px;padding:14px;border:1px dashed var(-
       <div class="err" id="addErr"></div>
     </div>
     <div class="sect">
+      <h2>কোড বদলান</h2>
+      <p class="note">যেটা বদলাতে চান শুধু সেটা লিখুন, অন্যটা ফাঁকা রাখুন। শুধু ইংরেজি অক্ষর, সংখ্যা ও চিহ্ন চলবে।</p>
+      <input id="newView" type="text" placeholder="নতুন দেখার কোড" autocomplete="off">
+      <input id="newAdmin" type="text" placeholder="নতুন অ্যাডমিন কোড" autocomplete="off">
+      <button id="saveCodes">কোড সংরক্ষণ</button>
+      <div class="err" id="codeMsg"></div>
+      <p class="note">সংরক্ষণের পর নিচের <b>config.json ডাউনলোড</b> করে GitHub-এ আপলোড করলে নতুন কোড চালু হবে। তার আগ পর্যন্ত পুরোনো কোডই চলবে। কোড সরাসরি কোথাও লেখা থাকে না, শুধু হ্যাশ থাকে। ছোট কোড (যেমন ৪-৬ সংখ্যা) কেউ চাইলে অনুমান করে বের করতে পারে, তাই ৮ বা তার বেশি অক্ষরের কোড রাখুন।</p>
+    </div>
+    <div class="sect">
       <h2>আপনার ভিডিও</h2>
       <div id="adminList"></div>
       <button id="exportCfg">config.json ডাউনলোড</button>
@@ -145,6 +154,7 @@ function sha256(ascii){
 
 var $=function(id){return document.getElementById(id)};
 var cfg={siteName:"আমার সিনেমা",videos:[]};
+var pub={};
 var role=null, viewerView=false;
 
 function safe(fn){try{return fn()}catch(e){return null}}
@@ -169,6 +179,7 @@ function dbDel(id){return db().then(function(d){d.transaction("v","readwrite").o
 
 function loadConfig(){
   return fetch("config.json",{cache:"no-store"}).then(function(r){return r.json()}).catch(function(){return null}).then(function(c){
+    pub=c||{};
     if(c&&c.videos)cfg=c;
     if(role==="admin"){var d=loadDraft();if(d)cfg=d}
   });
@@ -240,9 +251,11 @@ $("gateForm").addEventListener("submit",function(e){
   e.preventDefault();
   var h=sha256($("code").value.trim());
   $("code").value="";
-  if(h===ADMIN_HASH)enter("admin");
-  else if(h===VIEW_HASH)enter("viewer");
-  else $("gateErr").textContent="কোড ভুল হয়েছে।";
+  ready.then(function(){
+    if(h&&h===(pub.adminHash||ADMIN_HASH))enter("admin");
+    else if(h&&h===(pub.viewHash||VIEW_HASH))enter("viewer");
+    else $("gateErr").textContent="কোড ভুল হয়েছে।";
+  });
 });
 $("logout").onclick=function(){safe(function(){sessionStorage.removeItem("role")});location.reload()};
 $("toggleView").onclick=function(){viewerView=!viewerView;refresh()};
@@ -264,15 +277,32 @@ $("addVideo").onclick=function(){
   if(src){done({id:id,title:title,src:src})}
   else{dbPut(id,f).then(function(){done({id:id,title:title,local:true,type:(f.type||"").indexOf("image")===0?"image":"video"})}).catch(function(){err.textContent="ফাইলটা সংরক্ষণ করা যায়নি।"})}
 };
+$("saveCodes").onclick=function(){
+  var nv=$("newView").value.trim(),na=$("newAdmin").value.trim(),m=$("codeMsg");
+  m.style.color="#ff7b8c";
+  if(!nv&&!na){m.textContent="নতুন কোড লিখুন।";return}
+  var ok=/^[\x21-\x7e]+$/;
+  if((nv&&!ok.test(nv))||(na&&!ok.test(na))){m.textContent="শুধু ইংরেজি অক্ষর, সংখ্যা ও চিহ্ন ব্যবহার করুন, ফাঁকা জায়গা নয়।";return}
+  if((nv&&nv.length<4)||(na&&na.length<4)){m.textContent="কোড অন্তত ৪ অক্ষরের হতে হবে।";return}
+  var vh=nv?sha256(nv):(cfg.viewHash||VIEW_HASH);
+  var ah=na?sha256(na):(cfg.adminHash||ADMIN_HASH);
+  if(vh===ah){m.textContent="দেখার কোড আর অ্যাডমিন কোড আলাদা হতে হবে।";return}
+  cfg.viewHash=vh;cfg.adminHash=ah;saveDraft();
+  $("newView").value="";$("newAdmin").value="";
+  m.style.color="#7bffc8";
+  m.textContent="কোড সংরক্ষণ হয়েছে। এখন config.json ডাউনলোড করে GitHub-এ আপলোড করুন।";
+};
 $("exportCfg").onclick=function(){
   var out={siteName:cfg.siteName,videos:cfg.videos.filter(function(v){return !v.local}).map(function(v){return{id:v.id,title:v.title,src:v.src}})};
+  if(cfg.viewHash)out.viewHash=cfg.viewHash;
+  if(cfg.adminHash)out.adminHash=cfg.adminHash;
   var a=document.createElement("a");
   a.href=URL.createObjectURL(new Blob([JSON.stringify(out,null,2)],{type:"application/json"}));
   a.download="config.json";a.click();
 };
 
 /* শুরুতে সাইটের নাম লোড */
-loadConfig().then(function(){
+var ready=loadConfig().then(function(){
   setBrand();
   var r=safe(function(){return sessionStorage.getItem("role")});
   if(r==="admin"||r==="viewer")enter(r);
