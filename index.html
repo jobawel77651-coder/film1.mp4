@@ -98,6 +98,7 @@ input[type=file]{width:100%;margin-top:12px;padding:14px;border:1px dashed var(-
     <div class="sect">
       <h2>কোড বদলান</h2>
       <p class="note">যেটা বদলাতে চান শুধু সেটা লিখুন, অন্যটা ফাঁকা রাখুন। শুধু ইংরেজি অক্ষর, সংখ্যা ও চিহ্ন চলবে।</p>
+      <input id="curAdmin" type="password" placeholder="বর্তমান অ্যাডমিন কোড (বাধ্যতামূলক)" autocomplete="off">
       <input id="newView" type="text" placeholder="নতুন দেখার কোড" autocomplete="off">
       <input id="newAdmin" type="text" placeholder="নতুন অ্যাডমিন কোড" autocomplete="off">
       <button id="saveCodes">কোড সংরক্ষণ</button>
@@ -280,6 +281,8 @@ $("addVideo").onclick=function(){
 $("saveCodes").onclick=function(){
   var nv=$("newView").value.trim(),na=$("newAdmin").value.trim(),m=$("codeMsg");
   m.style.color="#ff7b8c";
+  var cur=sha256($("curAdmin").value.trim());
+  if(!cur||cur!==(cfg.adminHash||ADMIN_HASH)){m.textContent="বর্তমান অ্যাডমিন কোড ভুল, তাই কোড বদলানো যাবে না।";return}
   if(!nv&&!na){m.textContent="নতুন কোড লিখুন।";return}
   var ok=/^[\x21-\x7e]+$/;
   if((nv&&!ok.test(nv))||(na&&!ok.test(na))){m.textContent="শুধু ইংরেজি অক্ষর, সংখ্যা ও চিহ্ন ব্যবহার করুন, ফাঁকা জায়গা নয়।";return}
@@ -288,7 +291,7 @@ $("saveCodes").onclick=function(){
   var ah=na?sha256(na):(cfg.adminHash||ADMIN_HASH);
   if(vh===ah){m.textContent="দেখার কোড আর অ্যাডমিন কোড আলাদা হতে হবে।";return}
   cfg.viewHash=vh;cfg.adminHash=ah;saveDraft();
-  $("newView").value="";$("newAdmin").value="";
+  $("curAdmin").value="";$("newView").value="";$("newAdmin").value="";
   m.style.color="#7bffc8";
   m.textContent="কোড সংরক্ষণ হয়েছে। এখন config.json ডাউনলোড করে GitHub-এ আপলোড করুন।";
 };
